@@ -2,67 +2,77 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 interface RegisteredDevices {
-    function verifyDeviceAddress(address device_registration_address) external view returns (bool);
-    function getDeviceFromAddress(address device_registration_address) external view returns (uint);
-    function sourceVerificationLinked(address device_registration_address) external view returns (bool);
+    function getDeviceRegistrationData(uint hashed_device_id) external view returns (bool device_exists, address device_address, uint256 time_registered);
 }
 
 contract SourceVerification { 
 
-    event DeviceRegistrationContractLinked(address _device_registration_contract, bool _linked);
-    event DeviceVerified(address _device_address, uint _device_reference, bool _verified);
+    event DeviceRegistrationContractLinking(string message);
+    event DeviceVerifying(string message);
+
+    struct VerificationData {
+        bool storage_reference_exists;
+        bool verified;
+        uint256 time_verified;
+    }
+
+    mapping(uint => mapping(uint => VerificationData)) private deviceToVerificationData;
     
-    address device_registration_contract;
+    address _device_registration_contract;
+    bool _linked;
 
-    function setDeviceRegistrationContract(address _device_registration_contract) public returns (bool is_linked) {
-        device_registration_contract = _device_registration_contract;
-        bool _linked = isLinked(device_registration_contract);
+    function setDeviceRegistrationContract(address device_registration_contract) public returns (bool linked) {
+        _device_registration_contract = device_registration_contract;
+        _linked = true;
 
-        emit DeviceRegistrationContractLinked(device_registration_contract, _linked);
-
+        emit DeviceRegistrationContractLinking("deployed contract linked");
+       
         return _linked;
     }
 
-    function isLinked(address device_registration_address) private view returns (bool) {
-        bool _linked = RegisteredDevices(device_registration_address).sourceVerificationLinked(device_registration_contract);    
-        return _linked;
-    }
-
-    modifier linked() { 
-        if (!isLinked(device_registration_contract)) {
-            emit DeviceRegistrationContractLinked(device_registration_contract, false);
+    modifier isLinked() { 
+        if (_linked == false) {
+            emit DeviceRegistrationContractLinking("contract not linked");
         }
         else {
             _;
         }
     }
 
-    function verifyDeviceAddress(address device_address) private view returns (bool exists) {
-        return RegisteredDevices(device_registration_contract).verifyDeviceAddress(device_address);
+    modifier alreadyVerified(uint hashed_device_id, uint storage_reference) { 
+        if (deviceToVerificationData[hashed_device_id][storage_reference].storage_reference_exists == true) {
+            emit DeviceVerifying("source already verified");
+        }
+        else {
+            _;
+        }
     }
 
-    function getDeviceFromAddress(address device_address) private view returns (uint device_reference) {
-        return RegisteredDevices(device_registration_contract).getDeviceFromAddress(device_address);
-    }
-
-    function Verify(uint device_reference, address device_address) public linked() returns (bool _verfied) {
-        bool verified;
+    function Verify(uint hashed_device_id, address device_address, uint storage_reference) public isLinked() alreadyVerified(hashed_device_id, storage_reference) returns (bool verified) {   
         
-        bool device_address_exists = verifyDeviceAddress(device_address);
-
-        if (device_address_exists) {
-            uint reteieved_device_reference = getDeviceFromAddress(device_address);
-
-            if (device_reference == reteieved_device_reference) {
+        (bool device_exists, address registered_device_address, ) = RegisteredDevices(_device_registration_contract).getDeviceRegistrationData(hashed_device_id);
+        
+        if (device_exists) {
+            if (device_address == registered_device_address) {
                 verified = true;
+                emit DeviceVerifying("device is verified");
             }
             else {
-                verified = false;
+                emit DeviceVerifying("device not associated with address");
             }
         }
-    
-        emit DeviceVerified(device_address, device_reference, verified);
+        else {
+            emit DeviceVerifying("device is not registered");
+        }
 
+        deviceToVerificationData[hashed_device_id][storage_reference] = VerificationData(true, verified, block.timestamp);
+    
         return verified;
+    }
+
+    function getSourceVerificationData(uint hashed_device_id, uint storage_reference) external view returns (bool verified, uint256 time_verified) {
+        VerificationData memory verification_data = deviceToVerificationData[hashed_device_id][storage_reference];
+        
+        return (verification_data.verified, verification_data.time_verified);
     }
 }

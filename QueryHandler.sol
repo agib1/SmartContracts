@@ -3,44 +3,57 @@ pragma solidity >=0.7.0 <0.9.0;
 
 contract QueryLogging {
 
+    event QueryStatusLogging(string message);
+
     struct Query {
         bool exists;
-        uint device_reference;
         string request_type;
-        uint date_generated;
-        uint time_generated;
+        uint256 time_generated;
         bool resolution;
+        uint256 time_request_logged;
+        uint256 time_resolution_logged;
     }
 
-    event QueryLogged(uint query_reference, Query new_query);
-    event UnknownQuery(uint query_reference, string error_message);
+    mapping(uint => mapping(uint => Query)) private deviceToQuery;
 
-    mapping(uint => Query) private referenceToQuery;
-
-    function logQueryRequest(uint query_reference, uint device_reference, string memory request_type, uint date_generated, uint time_generated) public {
-        Query memory new_query = Query(true, device_reference, request_type, date_generated, time_generated, false);
-        referenceToQuery[query_reference] = new_query;
-
-        emit QueryLogged(query_reference, new_query);
-    }
-
-    modifier queryRequested(uint query_reference) { 
-        if (!referenceToQuery[query_reference].exists == true) {
-            emit UnknownQuery(query_reference, "query request wasn't made");
+    modifier queryExists(uint hashed_device_id, uint query_reference) { 
+        if (deviceToQuery[hashed_device_id][query_reference].exists == true) {
+            emit QueryStatusLogging("query already exists");
         }
         else {
             _;
         }
     }
 
-    function logQueryResolution(uint query_reference, bool resolution) public queryRequested(query_reference) returns (bool _resolution){
-        Query memory solved_query = referenceToQuery[query_reference];
-        solved_query.resolution = resolution;
-        referenceToQuery[query_reference] = solved_query;
+    function logQueryRequest(uint hashed_device_id, uint query_reference, string memory request_type, uint time_generated) queryExists(hashed_device_id, query_reference) public returns (bool logged) {
+        deviceToQuery[hashed_device_id][query_reference] = Query(true, request_type, time_generated, false, block.timestamp, 0);
+        
+        emit QueryStatusLogging("query request logged");
 
-        emit QueryLogged(query_reference, solved_query);
-
-        return resolution;
+        return true;
     }
 
+    modifier queryRequested(uint hashed_device_id, uint query_reference) { 
+        if (deviceToQuery[hashed_device_id][query_reference].exists == false) {
+            emit QueryStatusLogging("query request wasn't made");
+        }
+        else {
+            _;
+        }
+    }
+
+    function logQueryResolution(uint hashed_device_id, uint query_reference, bool resolution) public queryRequested(hashed_device_id, query_reference) returns (bool logged) {
+        deviceToQuery[hashed_device_id][query_reference].resolution = resolution;
+        deviceToQuery[hashed_device_id][query_reference].time_resolution_logged = block.timestamp;
+   
+        emit QueryStatusLogging("query resolution logged");
+
+        return true;
+    }
+
+    function getQuery(uint hashed_device_id, uint storage_reference) external view returns (string memory request_type, uint256 time_generated, bool resolution, uint256 time_request_logged, uint256 time_resolution_logged) {
+        Query memory query = deviceToQuery[hashed_device_id][storage_reference];
+        
+        return (query.request_type, query.time_generated, query.resolution, query.time_request_logged, query.time_resolution_logged);
+    }
 }

@@ -10,47 +10,40 @@ contract NewDevice {
 
 contract DeviceRegistration {
     
-    event DeviceRegistered(uint _device_reference, address _device_address);
+    event DeviceRegistering(string message);
 
-    mapping(uint => bool) private devices;
-    mapping(address => bool) private addresses;
-    mapping(address => uint) private addressToDevice;
-
- 
-    modifier notRegistered(uint device_reference) {
-        require(devices[device_reference] != true);
-        _;
+    struct RegistrationData {
+        bool device_exists;
+        address device_address;
+        uint256 time_registered;
     }
 
-    function RegisterDevice(uint device_reference) public notRegistered(device_reference) returns (address _device_address) {
+    mapping(uint => RegistrationData) private deviceToRegistrationData;
+
+    modifier notRegistered(uint hashed_device_id) {
+        if (deviceToRegistrationData[hashed_device_id].device_exists == true) {
+            emit DeviceRegistering("device already registered");
+        }
+        else {
+            _;
+        }
+    }
+
+    function RegisterDevice(uint hashed_device_id) public notRegistered(hashed_device_id) returns (address device_address) {
 
         NewDevice new_device = new NewDevice();
-        address device_address = new_device.getAddress();
+        device_address = new_device.getAddress();
 
-        addresses[device_address] = true;
-        devices[device_reference] = true;
-        addressToDevice[device_address] = device_reference;
+        deviceToRegistrationData[hashed_device_id] = RegistrationData(true, device_address, block.timestamp);
         
-        emit DeviceRegistered(device_reference, device_address);
+        emit DeviceRegistering("device registered");
 
         return device_address;
     }
 
-    function verifyDeviceAddress(address device_address) external view returns (bool) {
-        return addresses[device_address];
-    }
-
-    function getDeviceFromAddress(address device_address) external view returns (uint) {
-        return addressToDevice[device_address];
-    }
-
-    function sourceVerificationLinked(address device_registration_address) external view returns (bool) {
-        if (device_registration_address == address(this)) {
-            return true;
-        }
-        else {
-            return false;
-        }
+    function getDeviceRegistrationData(uint hashed_device_id) external view returns (bool device_exists, address device_address, uint256 time_registered) {
+        RegistrationData memory registration_data = deviceToRegistrationData[hashed_device_id];
+        
+        return (registration_data.device_exists, registration_data.device_address, registration_data.time_registered);
     }
 }
-
