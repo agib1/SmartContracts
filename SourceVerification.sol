@@ -19,7 +19,7 @@ contract SourceVerification {
     mapping(uint => mapping(uint => VerificationData)) private deviceToVerificationData;
     
     address _device_registration_contract;
-    bool _linked;
+    bool _linked = false;
 
     function setDeviceRegistrationContract(address device_registration_contract) public returns (bool linked) {
         _device_registration_contract = device_registration_contract;
