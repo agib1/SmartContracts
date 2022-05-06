@@ -7,7 +7,7 @@ interface RegisteredDevices {
 
 contract SourceVerification { 
 
-    event DeviceRegistrationContractLinking(string message);
+    event ContractLinking(string message);
     event DeviceVerifying(string message);
 
     struct VerificationData {
@@ -25,14 +25,14 @@ contract SourceVerification {
         _device_registration_contract = device_registration_contract;
         _linked = true;
 
-        emit DeviceRegistrationContractLinking("deployed contract linked");
+        emit ContractLinking("deployed contract linked");
        
         return _linked;
     }
 
     modifier isLinked() { 
         if (_linked == false) {
-            emit DeviceRegistrationContractLinking("contract not linked");
+            emit ContractLinking("contract not linked");
         }
         else {
             _;
